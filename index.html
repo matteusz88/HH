@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta http-equiv="refresh" content="0"><!-- prevents some signage caching issues -->
+  <title>Live Solar Dashboard</title>
+
+  <style>
+    :root{
+      --bg: #0b0f14;
+      --card: #121a24;
+      --text: #e8eef7;
+      --muted: rgba(232, 238, 247, .70);
+      --muted2: rgba(232, 238, 247, .55);
+      --radius: 26px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .wrap {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 46px 54px;
+      gap: 26px;
+    }
+
+    .header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .title {
+      font-size: 40px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    .status {
+      font-size: 18px;
+      color: var(--muted2);
+      white-space: nowrap;
+    }
+
+    .grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(240px, 1fr));
+      gap: 28px;
+      align-items: stretch;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 34px 36px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-height: 320px;
+    }
+
+    .label {
+      font-size: 22px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .value {
+      font-size: 92px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      line-height: 1.0;
+    }
+
+    .unit {
+      font-size: 34px;
+      font-weight: 700;
+      opacity: 0.9;
+      margin-left: 10px;
+    }
+
+    .sub {
+      margin-top: 16px;
+      font-size: 18px;
+      color: var(--muted2);
+    }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      font-size: 16px;
+      color: var(--muted2);
+    }
+
+    .pill {
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 999px;
+    }
+
+    @media (max-width: 1100px) {
+      .grid { grid-template-columns: 1fr; }
+      .value { font-size: 76px; }
+      .card { min-height: auto; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="header">
+      <div class="title">Live Solar</div>
+      <div class="status" id="status">Starting…</div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="label">Power now</div>
+        <div>
+          <span class="value" id="power">—</span><span class="unit" id="powerUnit"></span>
+        </div>
+        <div class="sub" id="powerSub">Solar generation right now</div>
+      </div>
+
+      <div class="card">
+        <div class="label">Battery</div>
+        <div>
+          <span class="value" id="battery">—</span><span class="unit">%</span>
+        </div>
+        <div class="sub" id="batterySub">State of charge</div>
+      </div>
+
+      <div class="card">
+        <div class="label">Self-sufficiency</div>
+        <div>
+          <span class="value" id="self">—</span><span class="unit">%</span>
+        </div>
+        <div class="sub" id="selfSub">Share of today’s usage met on-site</div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="pill" id="updated">Updated: —</div>
+      <div class="pill" id="modePill">Mode: —</div>
+    </div>
+  </div>
+
+<script>
+  /**
+   * CONFIG
+   * ------
+   * If you already have a JSON endpoint (recommended), set DATA_URL to it.
+   * The endpoint should return JSON in this shape:
+   * {
+   *   "power_w": 3250,                // number (watts) OR "power_kw": 3.25
+   *   "battery_pct": 78,              // number 0-100
+   *   "self_sufficiency_pct": 64,     // number 0-100
+   *   "updated_iso": "2026-01-16T14:22:05Z"  // optional
+   * }
+   *
+   * If you DON'T have a data endpoint yet, keep DEMO_MODE true for now.
+   */
+  const CONFIG = {
+    DATA_URL: "",         // e.g. "https://your-domain.example/api/solar"
+    POLL_MS: 10000,       // 10s
+    DEMO_MODE: true,      // set false when DATA_URL is ready
+  };
+
+  function fmtPower(powerW) {
+    const w = Number(powerW);
+    if (!isFinite(w)) return { value: "—", unit: "" };
+
+    if (w >= 1000) {
+      const kw = w / 1000;
+      return { value: kw.toFixed(2), unit: "kW" };
+    }
+    return { value: Math.round(w).toString(), unit: "W" };
+  }
+
+  function setText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  }
+
+  function setStatus(ok, msg) {
+    setText("status", msg);
+    // You can later add color cues here if you want.
+  }
+
+  function setUpdated(ts) {
+    const d = ts ? new Date(ts) : null;
+    if (d && !isNaN(d.getTime())) {
+      setText("updated", "Updated: " + d.toLocaleTimeString());
+    } else {
+      setText("updated", "Updated: —");
+    }
+  }
+
+  function applyData(d) {
+    // Power
+    let powerW = d.power_w;
+    if (powerW === undefined && d.power_kw !== undefined) {
+      powerW = Number(d.power_kw) * 1000;
+    }
+    const p = fmtPower(powerW);
+    setText("power", p.value);
+    setText("powerUnit", p.unit);
+
+    // Battery
+    const b = (d.battery_pct === null || d.battery_pct === undefined) ? null : Number(d.battery_pct);
+    setText("battery", (b === null || !isFinite(b)) ? "—" : Math.round(b).toString());
+
+    // Self-sufficiency
+    const s = (d.self_sufficiency_pct === null || d.self_sufficiency_pct === undefined) ? null : Number(d.self_sufficiency_pct);
+    setText("self", (s === null || !isFinite(s)) ? "—" : Math.round(s).toString());
+
+    // Updated time
+    if (d.updated_iso) setUpdated(d.updated_iso);
+    else setUpdated(Date.now());
+  }
+
+  function demoData() {
+    // simple, believable demo that changes slowly
+    const now = Date.now();
+    const seed = Math.floor(now / 10000);
+    const rand = (x) => {
+      // deterministic-ish pseudo randomness
+      const t = Math.sin(x * 999) * 10000;
+      return t - Math.floor(t);
+    };
+
+    const solarKw = Math.max(0, (rand(seed) * 6.5));
+    const powerW = Math.round(solarKw * 1000);
+
+    let battery = Math.round(30 + rand(seed + 1) * 60);
+    let self = Math.round(40 + rand(seed + 2) * 55);
+
+    return {
+      power_w: powerW,
+      battery_pct: battery,
+      self_sufficiency_pct: self,
+      updated_iso: new Date().toISOString()
+    };
+  }
+
+  async function fetchLive() {
+    if (CONFIG.DEMO_MODE || !CONFIG.DATA_URL) {
+      applyData(demoData());
+      setText("modePill", "Mode: Demo");
+      setStatus(true, "Demo data (set DATA_URL when ready)");
+      return;
+    }
+
+    try {
+      const r = await fetch(CONFIG.DATA_URL, { cache: "no-store" });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const d = await r.json();
+
+      applyData(d);
+      setText("modePill", "Mode: Live");
+      setStatus(true, "Live data");
+    } catch (e) {
+      setText("modePill", "Mode: Live (error)");
+      setStatus(false, "Live data error — retrying");
+      // Keep last values on screen if it fails; just update footer timestamp
+      setUpdated(Date.now());
+      console.error(e);
+    }
+  }
+
+  // Start
+  fetchLive();
+  setInterval(fetchLive, CONFIG.POLL_MS);
+</script>
+</body>
+</html>
