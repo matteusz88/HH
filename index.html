@@ -3,93 +3,111 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Solar Status</title>
+  <title>HH Solar Dashboard</title>
 
-  <!-- Font Awesome (CDN, nothing to host) -->
+  <!-- Title icons only -->
   <link
     rel="stylesheet"
     href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
   />
 
   <style>
-    :root {
-      --bg: #0e1116;
-      --card: #1a1f2b;
-      --text: #e8eaed;
-      --muted: #9aa0a6;
-      --green: #4caf50;
-      --amber: #ffb300;
-      --red: #e53935;
+    :root{
+      --bg:#0e1116;
+      --card:#1a1f2b;
+      --text:#e8eaed;
+      --muted:#9aa0a6;
+
+      /* status colours */
+      --good:#2e7d32;
+      --ok:#558b2f;
+      --warn:#ffb300;
+      --bad:#e53935;
+
+      --info:#1976d2;     /* charging / solar-ish */
+      --export:#2e7d32;   /* exporting / supplying */
+      --import:#ff8f00;   /* importing */
+      --idle:#546e7a;     /* neutral */
     }
 
-    html, body {
-      margin: 0;
-      padding: 0;
-      height: 100%;
-      background: var(--bg);
-      color: var(--text);
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    html,body{
+      margin:0;
+      height:100%;
+      background:var(--bg);
+      color:var(--text);
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
     }
 
-    .container {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 1.5rem;
-      padding: 2rem;
-      height: 100%;
-      box-sizing: border-box;
+    .container{
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:1.5rem;
+      padding:2rem;
+      box-sizing:border-box;
+      height:100%;
     }
 
-    .card {
-      background: var(--card);
-      border-radius: 1rem;
-      padding: 1.5rem;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
+    .card{
+      background:var(--card);
+      border-radius:1rem;
+      padding:1.5rem;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      align-items:center;
+
+      /* neutral styling */
+      border:2px solid rgba(255,255,255,0.06);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.35);
+      transition: background-color 250ms ease, border-color 250ms ease, box-shadow 250ms ease;
     }
 
-    .label {
-      font-size: 1.1rem;
-      color: var(--muted);
-      margin-bottom: 0.5rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
+    /* Colouring: subtle tint + stronger border */
+    .state-good{ border-color: rgba(46,125,50,0.85); background: rgba(46,125,50,0.12); }
+    .state-ok{   border-color: rgba(85,139,47,0.85); background: rgba(85,139,47,0.10); }
+    .state-warn{ border-color: rgba(255,179,0,0.90); background: rgba(255,179,0,0.10); }
+    .state-bad{  border-color: rgba(229,57,53,0.90); background: rgba(229,57,53,0.10); }
+
+    .state-info{   border-color: rgba(25,118,210,0.90); background: rgba(25,118,210,0.10); }
+    .state-export{ border-color: rgba(46,125,50,0.90); background: rgba(46,125,50,0.12); }
+    .state-import{ border-color: rgba(255,143,0,0.90); background: rgba(255,143,0,0.10); }
+    .state-idle{   border-color: rgba(84,110,122,0.90); background: rgba(84,110,122,0.10); }
+
+    .label{
+      font-size:1.05rem;
+      color:var(--muted);
+      margin-bottom:0.6rem;
+      text-transform:uppercase;
+      letter-spacing:0.08em;
+      display:flex;
+      align-items:center;
+      gap:0.55rem;
     }
 
-    .value {
-      font-size: 3.2rem;
-      font-weight: 600;
-      line-height: 1;
-      font-variant-numeric: tabular-nums;
+    .value{
+      font-size:3.2rem;
+      font-weight:650;
+      line-height:1;
+      font-variant-numeric:tabular-nums;
+    }
+    .unit{
+      font-size:1.4rem;
+      margin-left:0.35rem;
+      color:var(--muted);
     }
 
-    .unit {
-      font-size: 1.4rem;
-      margin-left: 0.3rem;
-      color: var(--muted);
+    .status{
+      font-size:2.2rem;
+      font-weight:650;
+      font-variant-numeric:tabular-nums;
     }
 
-    .status {
-      font-size: 2.4rem;
-      font-weight: 600;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .status.green { color: var(--green); }
-    .status.amber { color: var(--amber); }
-    .status.red   { color: var(--red); }
-
-    .footer {
+    .footer{
       grid-column: span 3;
-      text-align: right;
-      color: var(--muted);
-      font-size: 1rem;
-      padding-right: 0.5rem;
+      text-align:right;
+      color:var(--muted);
+      font-size:1rem;
+      padding-right:0.5rem;
     }
   </style>
 </head>
@@ -97,55 +115,36 @@
 <body>
   <div class="container">
 
-    <!-- Solar -->
-    <div class="card">
+    <div class="card" id="cardSolar">
       <div class="label"><i class="fa-solid fa-sun"></i> Solar now</div>
-      <div>
-        <span class="value" id="solar">—</span>
-        <span class="unit">W</span>
-      </div>
+      <div><span class="value" id="solar">—</span><span class="unit">W</span></div>
     </div>
 
-    <!-- Battery SOC -->
-    <div class="card">
+    <div class="card" id="cardBattery">
       <div class="label"><i class="fa-solid fa-battery-half"></i> Battery</div>
-      <div>
-        <span class="value" id="batteryVal">—</span>
-        <span id="batteryIcon"></span>
-      </div>
+      <div><span class="value" id="battery">—</span><span class="unit">%</span></div>
     </div>
 
-    <!-- Load -->
-    <div class="card">
+    <div class="card" id="cardLoad">
       <div class="label"><i class="fa-solid fa-house"></i> Building load</div>
-      <div>
-        <span class="value" id="load">—</span>
-        <span class="unit">W</span>
-      </div>
+      <div><span class="value" id="load">—</span><span class="unit">W</span></div>
     </div>
 
-    <!-- Self sufficiency -->
-    <div class="card">
+    <div class="card" id="cardSelf">
       <div class="label"><i class="fa-solid fa-chart-pie"></i> Self-sufficiency</div>
-      <div>
-        <span class="value" id="self">—</span>
-        <span class="unit">%</span>
-      </div>
+      <div><span class="value" id="self">—</span><span class="unit">%</span></div>
     </div>
 
-    <!-- Grid status -->
-    <div class="card">
+    <div class="card" id="cardGrid">
       <div class="label"><i class="fa-solid fa-plug"></i> Grid status</div>
       <div class="status" id="grid">—</div>
     </div>
 
-    <!-- Battery activity -->
-    <div class="card">
+    <div class="card" id="cardBattAct">
       <div class="label"><i class="fa-solid fa-bolt"></i> Battery activity</div>
-      <div class="status" id="batteryState">—</div>
+      <div class="status" id="battAct">—</div>
     </div>
 
-    <!-- Footer -->
     <div class="footer">
       Updated <i class="fa-regular fa-clock"></i> <span id="updated">—</span>
     </div>
@@ -157,12 +156,49 @@
       POLL_MS: 10000,
     };
 
-    function batteryIconClass(pct) {
-      if (pct <= 10) return "fa-battery-empty";
-      if (pct <= 30) return "fa-battery-quarter";
-      if (pct <= 60) return "fa-battery-half";
-      if (pct <= 85) return "fa-battery-three-quarters";
-      return "fa-battery-full";
+    function setState(cardEl, stateClass) {
+      const classes = [
+        "state-good","state-ok","state-warn","state-bad",
+        "state-info","state-export","state-import","state-idle"
+      ];
+      cardEl.classList.remove(...classes);
+      if (stateClass) cardEl.classList.add(stateClass);
+    }
+
+    function solarState(pvW) {
+      if (pvW == null || !isFinite(pvW)) return "state-idle";
+      if (pvW >= 500) return "state-good";
+      if (pvW >= 50)  return "state-ok";
+      return "state-idle"; // night / negligible
+    }
+
+    function socState(pct) {
+      if (pct == null || !isFinite(pct)) return "state-idle";
+      if (pct <= 10) return "state-bad";
+      if (pct <= 25) return "state-warn";
+      if (pct <= 60) return "state-ok";
+      return "state-good";
+    }
+
+    function batteryActivityState(pbat) {
+      // Convention may vary. We’ll keep it simple:
+      // pbat > +20W => supplying (discharging) = green
+      // pbat < -20W => charging = blue
+      // else idle = grey
+      if (typeof pbat !== "number") return { text: "Idle", cls: "state-idle" };
+      if (pbat > 20)  return { text: "Supplying", cls: "state-export" };
+      if (pbat < -20) return { text: "Charging", cls: "state-info" };
+      return { text: "Idle", cls: "state-idle" };
+    }
+
+    function gridStatus(pgrid) {
+      // pgrid > +20W => importing = amber
+      // pgrid < -20W => exporting = green
+      // else balanced = grey
+      if (typeof pgrid !== "number") return { text: "Balanced", cls: "state-idle" };
+      if (pgrid > 20)  return { text: "Importing", cls: "state-import" };
+      if (pgrid < -20) return { text: "Exporting", cls: "state-export" };
+      return { text: "Balanced", cls: "state-idle" };
     }
 
     async function update() {
@@ -170,68 +206,38 @@
         const r = await fetch(CONFIG.DATA_URL + "?t=" + Date.now(), { cache: "no-store" });
         const d = await r.json();
 
-        // Solar
-        document.getElementById("solar").textContent =
-          d.power_w != null ? Math.round(d.power_w) : "—";
+        // Values
+        const pvW = (d.power_w != null && isFinite(d.power_w)) ? Number(d.power_w) : null;
+        const soc = (d.battery_pct != null && isFinite(d.battery_pct)) ? Number(d.battery_pct) : null;
 
-        // Battery %
-        if (d.battery_pct != null) {
-          document.getElementById("batteryVal").textContent =
-            d.battery_pct.toFixed(1) + "%";
-          document.getElementById("batteryIcon").innerHTML =
-            `<i class="fa-solid ${batteryIconClass(d.battery_pct)}"></i>`;
-        }
+        const l1 = Number(d.raw?.data?.prealL1 ?? 0);
+        const l2 = Number(d.raw?.data?.prealL2 ?? 0);
+        const l3 = Number(d.raw?.data?.prealL3 ?? 0);
+        const loadW = (isFinite(l1) || isFinite(l2) || isFinite(l3)) ? (l1 + l2 + l3) : null;
 
-        // Load (sum phases)
-        const load =
-          (d.raw?.data?.prealL1 || 0) +
-          (d.raw?.data?.prealL2 || 0) +
-          (d.raw?.data?.prealL3 || 0);
+        const pgrid = (typeof d.raw?.data?.pgrid === "number") ? d.raw.data.pgrid : undefined;
+        const pbat  = (typeof d.raw?.data?.pbat  === "number") ? d.raw.data.pbat  : undefined;
 
-        document.getElementById("load").textContent =
-          load > 0 ? Math.round(load) : "—";
+        document.getElementById("solar").textContent   = pvW == null ? "—" : Math.round(pvW);
+        document.getElementById("battery").textContent = soc == null ? "—" : soc.toFixed(1);
+        document.getElementById("load").textContent    = (loadW == null || loadW <= 0) ? "—" : Math.round(loadW);
 
-        // Self sufficiency
         document.getElementById("self").textContent =
-          d.self_sufficiency_pct != null ? d.self_sufficiency_pct : "—";
+          (d.self_sufficiency_pct == null) ? "—" : d.self_sufficiency_pct;
 
-        // Grid status
-        const pgrid = d.raw?.data?.pgrid;
-        let gridHTML = `<i class="fa-solid fa-scale-balanced"></i> Balanced`;
-        let gridClass = "";
+        const gs = gridStatus(pgrid);
+        document.getElementById("grid").textContent = gs.text;
 
-        if (typeof pgrid === "number") {
-          if (pgrid > 20) {
-            gridHTML = `<i class="fa-solid fa-arrow-right-to-bracket"></i> Importing`;
-            gridClass = "amber";
-          } else if (pgrid < -20) {
-            gridHTML = `<i class="fa-solid fa-arrow-right-from-bracket"></i> Exporting`;
-            gridClass = "green";
-          }
-        }
+        const ba = batteryActivityState(pbat);
+        document.getElementById("battAct").textContent = ba.text;
 
-        const gridEl = document.getElementById("grid");
-        gridEl.innerHTML = gridHTML;
-        gridEl.className = "status " + gridClass;
-
-        // Battery activity
-        const pbat = d.raw?.data?.pbat;
-        let battHTML = `<i class="fa-solid fa-pause"></i> Idle`;
-        let battClass = "";
-
-        if (typeof pbat === "number") {
-          if (pbat > 20) {
-            battHTML = `<i class="fa-solid fa-arrow-up"></i> Supplying`;
-            battClass = "green";
-          } else if (pbat < -20) {
-            battHTML = `<i class="fa-solid fa-arrow-down"></i> Charging`;
-            battClass = "amber";
-          }
-        }
-
-        const battEl = document.getElementById("batteryState");
-        battEl.innerHTML = battHTML;
-        battEl.className = "status " + battClass;
+        // Tile colouring
+        setState(document.getElementById("cardSolar"),   solarState(pvW));
+        setState(document.getElementById("cardBattery"), socState(soc));
+        setState(document.getElementById("cardLoad"),    "state-idle");      // load is informational
+        setState(document.getElementById("cardSelf"),    "state-idle");      // keep neutral, your self is often —
+        setState(document.getElementById("cardGrid"),    gs.cls);
+        setState(document.getElementById("cardBattAct"), ba.cls);
 
         // Updated time
         if (d.updated_iso) {
@@ -239,7 +245,6 @@
           document.getElementById("updated").textContent =
             t.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
         }
-
       } catch (e) {
         console.error("Update failed", e);
       }
