@@ -5,14 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Solar Status</title>
 
+  <!-- Font Awesome (CDN, nothing to host) -->
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+  />
+
   <style>
     :root {
       --bg: #0e1116;
       --card: #1a1f2b;
       --text: #e8eaed;
       --muted: #9aa0a6;
-      --accent: #4caf50;
-      --warn: #ffb300;
+      --green: #4caf50;
+      --amber: #ffb300;
+      --red: #e53935;
     }
 
     html, body {
@@ -49,12 +56,16 @@
       margin-bottom: 0.5rem;
       text-transform: uppercase;
       letter-spacing: 0.08em;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
     }
 
     .value {
       font-size: 3.2rem;
       font-weight: 600;
       line-height: 1;
+      font-variant-numeric: tabular-nums;
     }
 
     .unit {
@@ -66,7 +77,12 @@
     .status {
       font-size: 2.4rem;
       font-weight: 600;
+      font-variant-numeric: tabular-nums;
     }
+
+    .status.green { color: var(--green); }
+    .status.amber { color: var(--amber); }
+    .status.red   { color: var(--red); }
 
     .footer {
       grid-column: span 3;
@@ -83,25 +99,25 @@
 
     <!-- Solar -->
     <div class="card">
-      <div class="label">Solar now</div>
+      <div class="label"><i class="fa-solid fa-sun"></i> Solar now</div>
       <div>
         <span class="value" id="solar">—</span>
         <span class="unit">W</span>
       </div>
     </div>
 
-    <!-- Battery -->
+    <!-- Battery SOC -->
     <div class="card">
-      <div class="label">Battery</div>
+      <div class="label"><i class="fa-solid fa-battery-half"></i> Battery</div>
       <div>
-        <span class="value" id="battery">—</span>
-        <span class="unit">%</span>
+        <span class="value" id="batteryVal">—</span>
+        <span id="batteryIcon"></span>
       </div>
     </div>
 
     <!-- Load -->
     <div class="card">
-      <div class="label">Building load</div>
+      <div class="label"><i class="fa-solid fa-house"></i> Building load</div>
       <div>
         <span class="value" id="load">—</span>
         <span class="unit">W</span>
@@ -110,7 +126,7 @@
 
     <!-- Self sufficiency -->
     <div class="card">
-      <div class="label">Self-sufficiency</div>
+      <div class="label"><i class="fa-solid fa-chart-pie"></i> Self-sufficiency</div>
       <div>
         <span class="value" id="self">—</span>
         <span class="unit">%</span>
@@ -119,19 +135,19 @@
 
     <!-- Grid status -->
     <div class="card">
-      <div class="label">Grid status</div>
+      <div class="label"><i class="fa-solid fa-plug"></i> Grid status</div>
       <div class="status" id="grid">—</div>
     </div>
 
     <!-- Battery activity -->
     <div class="card">
-      <div class="label">Battery activity</div>
+      <div class="label"><i class="fa-solid fa-bolt"></i> Battery activity</div>
       <div class="status" id="batteryState">—</div>
     </div>
 
     <!-- Footer -->
     <div class="footer">
-      Updated <span id="updated">—</span>
+      Updated <i class="fa-regular fa-clock"></i> <span id="updated">—</span>
     </div>
   </div>
 
@@ -140,6 +156,14 @@
       DATA_URL: "https://hh.mattwhitby.workers.dev/api/solar",
       POLL_MS: 10000,
     };
+
+    function batteryIconClass(pct) {
+      if (pct <= 10) return "fa-battery-empty";
+      if (pct <= 30) return "fa-battery-quarter";
+      if (pct <= 60) return "fa-battery-half";
+      if (pct <= 85) return "fa-battery-three-quarters";
+      return "fa-battery-full";
+    }
 
     async function update() {
       try {
@@ -151,18 +175,21 @@
           d.power_w != null ? Math.round(d.power_w) : "—";
 
         // Battery %
-        document.getElementById("battery").textContent =
-          d.battery_pct != null ? d.battery_pct.toFixed(1) : "—";
+        if (d.battery_pct != null) {
+          document.getElementById("batteryVal").textContent =
+            d.battery_pct.toFixed(1) + "%";
+          document.getElementById("batteryIcon").innerHTML =
+            `<i class="fa-solid ${batteryIconClass(d.battery_pct)}"></i>`;
+        }
 
-        // Load
+        // Load (sum phases)
+        const load =
+          (d.raw?.data?.prealL1 || 0) +
+          (d.raw?.data?.prealL2 || 0) +
+          (d.raw?.data?.prealL3 || 0);
+
         document.getElementById("load").textContent =
-          d.raw?.data
-            ? Math.round(
-                (d.raw.data.prealL1 || 0) +
-                (d.raw.data.prealL2 || 0) +
-                (d.raw.data.prealL3 || 0)
-              )
-            : "—";
+          load > 0 ? Math.round(load) : "—";
 
         // Self sufficiency
         document.getElementById("self").textContent =
@@ -170,26 +197,41 @@
 
         // Grid status
         const pgrid = d.raw?.data?.pgrid;
-        let gridText = "Neutral";
+        let gridHTML = `<i class="fa-solid fa-scale-balanced"></i> Balanced`;
+        let gridClass = "";
 
         if (typeof pgrid === "number") {
-          if (pgrid > 20) gridText = "Importing";
-          else if (pgrid < -20) gridText = "Exporting";
-          else gridText = "Balanced";
+          if (pgrid > 20) {
+            gridHTML = `<i class="fa-solid fa-arrow-right-to-bracket"></i> Importing`;
+            gridClass = "amber";
+          } else if (pgrid < -20) {
+            gridHTML = `<i class="fa-solid fa-arrow-right-from-bracket"></i> Exporting`;
+            gridClass = "green";
+          }
         }
 
-        document.getElementById("grid").textContent = gridText;
+        const gridEl = document.getElementById("grid");
+        gridEl.innerHTML = gridHTML;
+        gridEl.className = "status " + gridClass;
 
         // Battery activity
         const pbat = d.raw?.data?.pbat;
-        let battText = "Idle";
+        let battHTML = `<i class="fa-solid fa-pause"></i> Idle`;
+        let battClass = "";
 
         if (typeof pbat === "number") {
-          if (pbat > 20) battText = "Supplying";
-          else if (pbat < -20) battText = "Charging";
+          if (pbat > 20) {
+            battHTML = `<i class="fa-solid fa-arrow-up"></i> Supplying`;
+            battClass = "green";
+          } else if (pbat < -20) {
+            battHTML = `<i class="fa-solid fa-arrow-down"></i> Charging`;
+            battClass = "amber";
+          }
         }
 
-        document.getElementById("batteryState").textContent = battText;
+        const battEl = document.getElementById("batteryState");
+        battEl.innerHTML = battHTML;
+        battEl.className = "status " + battClass;
 
         // Updated time
         if (d.updated_iso) {
